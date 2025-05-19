@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pdfplumber
 import os
@@ -6,17 +7,22 @@ from sentence_transformers import SentenceTransformer
 import faiss
 import openai
 
-# Read OpenAI API key from environment variable
+# Set API key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-st.title("Ask the Docs - Mini RAG Web App")
+st.set_page_config(page_title="Ask the Docs", layout="wide")
+st.title("📚 Ask the Docs - Mini RAG Web App")
 
-uploaded_file = st.file_uploader("Upload a PDF or TXT file", type=["pdf", "txt"])
+# Initialize session state for history
+if "history" not in st.session_state:
+    st.session_state.history = []
 
+# Load embedding model
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
 chunks = []
 index = None
-embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
+# File reading functions
 def read_file(file):
     text = ""
     if file.type == "application/pdf":
@@ -27,8 +33,6 @@ def read_file(file):
                     text += page_text + "\n"
     elif file.type == "text/plain":
         text = file.read().decode("utf-8")
-    else:
-        st.error("Unsupported file type!")
     return text
 
 def chunk_text(text, chunk_size=500, overlap=50):
@@ -41,29 +45,43 @@ def chunk_text(text, chunk_size=500, overlap=50):
         start += chunk_size - overlap
     return chunks
 
-if uploaded_file:
-    raw_text = read_file(uploaded_file)
-    if not raw_text.strip():
-        st.error("Failed to extract any text from the document.")
+# Tabs UI
+tab1, tab2, tab3 = st.tabs(["📁 Upload & Process", "❓ Ask Questions", "📜 History"])
+
+# --- Upload & Process Tab ---
+with tab1:
+    uploaded_files = st.file_uploader("Upload PDF or TXT files", type=["pdf", "txt"], accept_multiple_files=True)
+
+    if uploaded_files:
+        raw_text = ""
+        for file in uploaded_files:
+            raw_text += read_file(file) + "\n"
+
+        if not raw_text.strip():
+            st.error("❌ Failed to extract text from documents.")
+        else:
+            chunks = chunk_text(raw_text)
+            st.success(f"✅ Split document into {len(chunks)} chunks.")
+
+            embeddings = embedder.encode(chunks)
+            embeddings = np.array(embeddings).astype("float32")
+            dimension = embeddings.shape[1]
+            index = faiss.IndexFlatL2(dimension)
+            index.add(embeddings)
+            st.session_state.chunks = chunks
+            st.session_state.index = index
+            st.success("✅ Embeddings and index created.")
+
+# --- Ask Questions Tab ---
+with tab2:
+    if "index" not in st.session_state or "chunks" not in st.session_state:
+        st.info("Please upload and process documents first in the Upload tab.")
     else:
-        chunks = chunk_text(raw_text)
-        st.success(f"Document split into {len(chunks)} chunks.")
-
-        # create embeddings and faiss index
-        embeddings = embedder.encode(chunks)
-        embeddings = np.array(embeddings).astype("float32")
-        dimension = embeddings.shape[1]
-        index = faiss.IndexFlatL2(dimension)
-        index.add(embeddings)
-
-        # **Always show question input after splitting document**
-        question = st.text_input("Enter your question about the document")
-
-        # Only show "Get Answer" button and answer if question is entered
+        question = st.text_input("Enter your question about the documents:")
         if question and st.button("Get Answer"):
             q_embedding = embedder.encode([question])
-            D, I = index.search(np.array(q_embedding).astype("float32"), k=3)
-            relevant_chunks = [chunks[i] for i in I[0]]
+            D, I = st.session_state.index.search(np.array(q_embedding).astype("float32"), k=3)
+            relevant_chunks = [st.session_state.chunks[i] for i in I[0]]
             context = "\n\n".join(relevant_chunks)
 
             st.subheader("📌 Retrieved Context")
@@ -88,5 +106,17 @@ Answer:"""
                 answer = response.choices[0].message.content.strip()
                 st.subheader("🧠 Answer from LLM")
                 st.write(answer)
+                st.session_state.history.append((question, answer))
             except Exception as e:
-                st.error(f"Error in generating answer: {e}")
+                st.error(f"❌ Error in generating answer: {e}")
+
+# --- History Tab ---
+with tab3:
+    st.subheader("📜 Question & Answer History")
+    if st.session_state.history:
+        for i, (q, a) in enumerate(st.session_state.history):
+            st.markdown(f"**Q{i+1}:** {q}")
+            st.markdown(f"**A{i+1}:** {a}")
+            st.markdown("---")
+    else:
+        st.info("No questions asked yet.")
