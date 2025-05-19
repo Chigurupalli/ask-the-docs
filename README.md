@@ -6,9 +6,7 @@
 
 This is a Retrieval-Augmented Generation (RAG) application that allows users to query documents and get accurate answers powered by a Large Language Model (LLM). Built as part of the Cloud & Backend Engineering Internship task at Convolution Engineering Consultancy for the BidWiser product.
 
-## Demo
 
-*Live URL*: [https://your-app-url.com](https://your-app-url.com)
 
 ## Features
 
