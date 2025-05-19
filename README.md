@@ -33,7 +33,7 @@ Copy
 Edit
 
 2. Set your OpenAI API key:
-export OPENAI_API_KEY=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
+export OPENAI_API_KEY=i cant provide publicly
 
 markdown
 Copy
