@@ -41,7 +41,7 @@ This is a Retrieval-Augmented Generation (RAG) application that allows users to 
 - *Embeddings Model*: all-MiniLM-L6-v2 from sentence-transformers
 - *Vector Store*: FAISS or ChromaDB
 - *LLM*: OpenAI GPT-4 (via API) or open-source model via Hugging Face
-- *Deployment*: AWS EC2 (or Render/Vercel if used)
+- *Deployment*: AWS EC2 
 
 ---
 
